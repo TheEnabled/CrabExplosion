@@ -135,15 +135,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ACO_Background.cpp" />
     <ClCompile Include="GD_AtlasParserM.cpp" />
     <ClCompile Include="GD_BaseEngine.cpp" />
+    <ClCompile Include="GD_GameObject.cpp" />
     <ClCompile Include="GD_GameResource.cpp" />
+    <ClCompile Include="GD_TextObject.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ACO_Background.h" />
     <ClInclude Include="GD_AtlasParserM.h" />
     <ClInclude Include="GD_BaseEngine.h" />
+    <ClInclude Include="GD_GameObject.h" />
     <ClInclude Include="GD_GameResource.h" />
+    <ClInclude Include="GD_TextObject.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

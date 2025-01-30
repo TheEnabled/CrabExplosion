@@ -1,158 +1,136 @@
 #include "GD_BaseEngine.h"
 #include "GD_GameResource.h"
+#include "GD_GameObject.h"
+#include "ACO_Background.h"
+#include "GD_TextObject.h"
+
 #include <iostream>
 #include <vector>
+#include <cstdlib>
+#include <ctime>
 
 #define TILE_SIZE 50.0f
-#define PLAYER_IDX 0
-#define BOOM_IDX 1
-#define BOOM_GS 8
+#define PLAYER_IDX 3
+#define BONUS1_IDX 4
+#define BONUS2_IDX 5
 #define GAME_GRID_SIZE 10
 #define MENU_HEIGHT 2
 
+class Object2D : public GD_GameObject {
+private:
+    sf::Sprite* sprite;
+    int x, y;
+public:
+    Object2D(std::string id, std::string spriteType) :
+        GD_GameObject(id) {
+        GD_GameResource* res = GD_GameResource::createInstance();
+        sf::IntRect rect = (*res->getAtlas())[spriteType];
+        sprite = new sf::Sprite(*res->getTexture(), rect);
+        sprite->setScale({ TILE_SIZE / rect.size.x, TILE_SIZE / rect.size.y });
+        x = 0; y = 0;
+    }
+    ~Object2D() { delete sprite; }
+    void init() { }
+    void update(sf::Time deltaTime) { }
+    void draw(sf::RenderWindow* window) {
+        window->draw(*sprite);
+    }
+    void setPosition(int xV, int yV) {
+        x = xV; y = yV;
+        sprite->setPosition({ TILE_SIZE * x, TILE_SIZE * y });
+    }
+    void move(int xV, int yV) {
+        x += xV; y += yV;
+        sprite->setPosition({ TILE_SIZE * x, TILE_SIZE * y });
+        std::cout << "\nCurrent position is: " << TILE_SIZE * x << ", " << TILE_SIZE * y;
+    }
+    int getX() { return x; }
+    int getY() { return y; }
+};
+
 class Game : public GD_BaseEngine {
 private:
-    std::vector<sf::Sprite> gameObjects;
-    std::vector<sf::Sprite> gameBackground;
-    std::vector<sf::Text> menuText;
-    GD_GameResource* resources;
-
-    // Explosion animation
-    sf::Sprite explosionSprite;
-    std::vector<sf::IntRect> boomFrames;
-    int currentFrame;
-    sf::Time frameTime;
-    const sf::Time frameDuration = sf::seconds(0.1f); // Adjust frame duration
-
+    std::vector<GD_GameObject*> gameObjects;
+    int score;
 public:
-    Game() : explosionSprite(*resources->getTexture()) {
-        // Initialize resources
-        resources = GD_GameResource::createInstance();
-        currentFrame = 0;
-        frameTime = sf::Time::Zero;
-    }
+    void init() {
+        std::srand(std::time(nullptr));
+        score = 0;
 
-    void scaleSprite(sf::Sprite* sprite, sf::IntRect rect) {
-        sprite->setScale({ TILE_SIZE / rect.size.x * 0.99f, TILE_SIZE / rect.size.y * 0.99f });
-    }
+        gameObjects.push_back(new ACO_Background("bg1", "grass",
+            TILE_SIZE, GAME_GRID_SIZE, GAME_GRID_SIZE, 0, 0));
+        gameObjects.push_back(new ACO_Background("bg2", "tile",
+            TILE_SIZE, MENU_HEIGHT, GAME_GRID_SIZE, 0, 500));
+        gameObjects.push_back(new GD_TextObject("score",
+            "SCORE: 0", 20, 5 + TILE_SIZE * GAME_GRID_SIZE));
+        gameObjects.push_back(new Object2D("player", "crab"));
 
-    void init() override {
-        // Initialize game objects (e.g., player, crab)
-        gameObjects.push_back(
-            sf::Sprite(*resources->getTexture(),
-                (*resources->getAtlas())["crab"]));
-        gameObjects.back().setPosition({ 0.f, 0.f });
-        scaleSprite(&gameObjects.back(),
-            (*resources->getAtlas())["crab"]);
+        gameObjects.push_back(new Object2D("bonus1", "bonus1"));
+        gameObjects.push_back(new Object2D("bonus2", "bonus2"));
 
-        // Initialize menu text
-        menuText.push_back(sf::Text(*resources->getFont()));
-        menuText.back().setString("ENEMIES: 3");
-        menuText.back().setFillColor(sf::Color::White);
-        menuText.back().setPosition({ 20,5 + TILE_SIZE * GAME_GRID_SIZE });
+        setRandomPosition((Object2D*)gameObjects[BONUS1_IDX]);
+        setRandomPosition((Object2D*)gameObjects[BONUS2_IDX]);
 
-        // Initialize game background tiles
-        for (int i = 0; i < GAME_GRID_SIZE; i++) {
-            for (int j = 0; j < GAME_GRID_SIZE; j++) {
-                gameBackground.push_back(
-                    sf::Sprite(*resources->getTexture(),
-                        (*resources->getAtlas())["grass"]));
-                gameBackground.back().setPosition({ TILE_SIZE * i, TILE_SIZE * j });
-                scaleSprite(&gameBackground.back(),
-                    (*resources->getAtlas())["grass"]);
-            }
-        }
-
-        // Debug: Check if "boom" exists in the atlas
-        auto atlas = (*resources->getAtlas());
-        std::cout << "Atlas contains the following keys:" << std::endl;
-        for (const auto& entry : atlas) {
-            std::cout << entry.first << std::endl; // Print out all keys in the atlas
-        }
-
-        // Initialize explosion animation frames from the "boom" section in the atlas
-        if (atlas.find("boom") != atlas.end()) {
-            sf::IntRect boomRect = atlas["boom"];
-            int frameWidth = boomRect.size.x / BOOM_GS; // Number of frames in x-axis
-            int frameHeight = boomRect.size.y; // Assuming 1 row for explosion
-
-            // Debug: print frame dimensions
-            std::cout << "Frame Width: " << frameWidth << ", Frame Height: " << frameHeight << std::endl;
-
-            // Add frames for animation
-            for (int i = 0; i < BOOM_GS; i++) {
-                // Create new sf::IntRect for each frame
-                boomFrames.push_back(sf::IntRect(
-                    boomRect.left + (frameWidth * i), // Adjust x position for each frame
-                    boomRect.top, // y position stays the same (since it’s one row)
-                    frameWidth, frameHeight
-                ));
-                // Debug: print each frame's coordinates
-                std::cout << "Frame " << i << ": (" << boomFrames[i].left << ", " << boomFrames[i].top << ", "
-                    << boomFrames[i].size.x << ", " << boomFrames[i].size.y << ")" << std::endl;
-            }
-
-            std::cout << "Boom Atlas Parsed Successfully!" << std::endl; // Debug message
-        }
-        else {
-            std::cout << "Boom Atlas Failed to Parse!" << std::endl; // Debug message if "boom" is not found
-        }
-
-        // Set up explosion sprite
-        explosionSprite.setTexture(*resources->getTexture());
-        if (!boomFrames.empty()) {
-            explosionSprite.setTextureRect(boomFrames[0]); // Set first frame
-            explosionSprite.setPosition({ TILE_SIZE * 2, TILE_SIZE * 2 }); // Position of the explosion
-        }
-    }
-
-
-
-    void update(sf::Time deltaTime) override {
-        // Update the explosion animation
-        frameTime += deltaTime;
-        if (frameTime >= frameDuration) {
-            frameTime -= frameDuration;
-            currentFrame = (currentFrame + 1) % boomFrames.size(); // Loop through frames
-            explosionSprite.setTextureRect(boomFrames[currentFrame]);
-        }
-    }
-
-    void draw(sf::RenderWindow* window) override {
-        // Draw background, game objects, and text
-        for (int i = 0; i < gameBackground.size(); i++)
-            window->draw(gameBackground[i]);
         for (int i = 0; i < gameObjects.size(); i++)
-            window->draw(gameObjects[i]);
-        for (int i = 0; i < menuText.size(); i++)
-            window->draw(menuText[i]);
-
-        // Draw explosion sprite (animate it)
-        window->draw(explosionSprite); // Ensure this is visible
+            gameObjects[i]->init();
     }
 
-    void keyPressTrigger(sf::Keyboard::Scan keyCode) override {
+    void setRandomPosition(Object2D* obj) {
+        int x = std::rand() % GAME_GRID_SIZE;
+        int y = std::rand() % GAME_GRID_SIZE;
+        obj->setPosition(x, y);
+    }
+
+    void update(sf::Time deltaTime) {
+        Object2D* player = (Object2D*)gameObjects[PLAYER_IDX];
+        Object2D* bonus1 = (Object2D*)gameObjects[BONUS1_IDX];
+        Object2D* bonus2 = (Object2D*)gameObjects[BONUS2_IDX];
+
+        if (player->getX() == bonus1->getX() && player->getY() == bonus1->getY()) {
+            score += 1;
+            setRandomPosition(bonus1);
+            ((GD_TextObject*)gameObjects[2])->setText("SCORE: " + std::to_string(score));
+        }
+
+        if (player->getX() == bonus2->getX() && player->getY() == bonus2->getY()) {
+            score += 1;
+            setRandomPosition(bonus2);
+            ((GD_TextObject*)gameObjects[2])->setText("SCORE: " + std::to_string(score));
+        }
+    }
+
+    void draw(sf::RenderWindow* window) {
+        for (int i = 0; i < gameObjects.size(); i++)
+            gameObjects[i]->draw(window);
+    }
+
+    void keyPressTrigger(sf::Keyboard::Scan keyCode) {
+        Object2D* player = (Object2D*)gameObjects[PLAYER_IDX];
+
         if (keyCode == sf::Keyboard::Scan::Up)
-            gameObjects[PLAYER_IDX].move({ 0.0f, -TILE_SIZE });
+            player->move(0, -1);
         else if (keyCode == sf::Keyboard::Scan::Down)
-            gameObjects[PLAYER_IDX].move({ 0.0f, TILE_SIZE });
+            player->move(0, 1);
         else if (keyCode == sf::Keyboard::Scan::Left)
-            gameObjects[PLAYER_IDX].move({ -TILE_SIZE, 0.0f });
+            player->move(-1, 0);
         else if (keyCode == sf::Keyboard::Scan::Right)
-            gameObjects[PLAYER_IDX].move({ TILE_SIZE, 0.0f });
+            player->move(1, 0);
     }
 
-    void keyReleaseTrigger(sf::Keyboard::Scan keyCode) override {
-        // Handle key release events if necessary
-    }
+    void keyReleaseTrigger(sf::Keyboard::Scan keyCode) { }
 
     ~Game() {
+        GD_GameResource* resources = GD_GameResource::createInstance();
         delete resources;
+        for (int i = 0; i < gameObjects.size(); i++)
+            delete gameObjects[i];
     }
 };
 
 int main() {
     Game game;
-    game.run("Explosion Animation", TILE_SIZE * GAME_GRID_SIZE, TILE_SIZE * (GAME_GRID_SIZE + MENU_HEIGHT));
+    game.run("Hands-on 3: Collectable",
+        TILE_SIZE * GAME_GRID_SIZE,
+        TILE_SIZE * (GAME_GRID_SIZE + MENU_HEIGHT));
     return 0;
 }
